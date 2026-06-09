@@ -1,0 +1,10 @@
+# Godot
+.godot/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tooling
+.claude/
