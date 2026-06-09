@@ -15,7 +15,11 @@ documented foundation you drop your art and content into.
 | In-game HUD: EXP/level, Silver + Trinkets, team/FFA scores, ping, ammo/HP/grenades, kill rewards + combo popups, quick chat (keys 1–7), kill feed | `scenes/ui/hud.tscn` |
 | Touch controls (dual virtual sticks + JUMP/NADE/DASH buttons) for mobile/web | auto-shown on touch devices |
 | Platformer combat: run, double jump, wall jump, dash, fast fall, coyote time + jump buffering, aim with mouse/stick, grenades, perks | `scripts/game/` |
-| **62 weapons in 8 classes** (pistol, SMG, shotgun, rifle, sniper, LMG, launcher, exotic — no melee) | `autoload/item_db.gd` |
+| **63 weapons in 8 classes** (pistol, SMG, shotgun, rifle, sniper, LMG, launcher, exotic — no melee), top weapons gated by stat requirements (e.g. the Magma Gun needs ACC 9 / INT 9 / FP 10) | `autoload/item_db.gd` |
+| **Skill system**: 6 trainable skills (Resilience, Firepower, Speed, Intelligence, Accuracy, Defense), 84 skill points across 85 levels, escalating rank costs + level gates | `autoload/stats.gd` + profile screen |
+| **Gear slots**: armor, implant and two amulets that add/subtract stat points (gear-inclusive caps: 700 HP, ×1.90 dmg / 23% crit, 175 speed, 100% accuracy, 42% defense, INT 11) | `autoload/item_db.gd` |
+| Intelligence perks: stacking 4% shop discount per INT (up to 44%) and stronger medkit drops (52→72 HP) | `autoload/stats.gd` |
+| Server-authoritative medkit drops on death + minimal fall damage (safe below 500 px, capped at 15% max HP) | `scripts/game/` |
 | **4 game modes**: Team Deathmatch, Free-for-All, Gun Game, Instagib | `autoload/game.gd` |
 | **5 maps** in a dedicated folder, selectable from the menu and synced to joining clients | `maps/` + `autoload/map_db.gd` |
 | Kill rewards: 10 Silver + 5 XP per kill, combo multiplier up to ×7 within 6 s, level-difference bonus/malus | `autoload/game.gd` |

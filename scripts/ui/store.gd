@@ -12,7 +12,9 @@ extends Control
 @onready var detail_price: Label = %DetailPrice
 @onready var action_button: Button = %ActionButton
 @onready var status_label: Label = %StatusLabel
-@onready var category_buttons: Array[Button] = [%WeaponsTab, %GrenadesTab, %PerksTab]
+# Index in this array == ItemDB.Category value.
+@onready var category_buttons: Array[Button] = [
+	%WeaponsTab, %GrenadesTab, %PerksTab, %ArmorTab, %ImplantsTab, %AmuletsTab]
 
 var _category: int = ItemDB.Category.WEAPON
 var _weapon_class: int = -1  # -1 = all classes
@@ -51,6 +53,18 @@ func _on_perks_tab_pressed() -> void:
 	_select_category(ItemDB.Category.PERK)
 
 
+func _on_armor_tab_pressed() -> void:
+	_select_category(ItemDB.Category.ARMOR)
+
+
+func _on_implants_tab_pressed() -> void:
+	_select_category(ItemDB.Category.IMPLANT)
+
+
+func _on_amulets_tab_pressed() -> void:
+	_select_category(ItemDB.Category.AMULET)
+
+
 func _on_class_filter_item_selected(index: int) -> void:
 	_weapon_class = index - 1  # item 0 is "All classes"
 	_refresh_items()
@@ -79,6 +93,8 @@ func _refresh_items() -> void:
 			suffix = "  [owned]"
 		elif not Profile.is_unlocked(id):
 			suffix = "  [LV %d]" % int(item["unlock_level"])
+		elif not Profile.meets_requirements(id):
+			suffix = "  [stats too low]"
 		item_list.add_item("%s%s" % [item["name"], suffix])
 	_show_details(-1)
 
@@ -102,7 +118,7 @@ func _show_details(index: int) -> void:
 	detail_name.text = str(item["name"])
 	detail_desc.text = str(item["description"])
 	detail_stats.text = _stats_text(item)
-	detail_price.text = _price_text(item)
+	detail_price.text = _price_text(id, item)
 	action_button.disabled = false
 	if Profile.is_equipped(id):
 		action_button.text = "Equipped"
@@ -129,18 +145,49 @@ func _stats_text(item: Dictionary) -> String:
 		ItemDB.Category.PERK:
 			return "HP bonus: +%d   Speed: x%.2f" % [
 				int(item["max_hp_bonus"]), float(item["speed_mult"])]
+		ItemDB.Category.ARMOR, ItemDB.Category.IMPLANT, ItemDB.Category.AMULET:
+			return _gear_stats_text(item)
 	return ""
 
 
-func _price_text(item: Dictionary) -> String:
+func _gear_stats_text(item: Dictionary) -> String:
+	var lines: Array[String] = []
+	var mods: Dictionary = item.get("stat_mods", {})
+	for stat: String in mods:
+		var value := int(mods[stat])
+		lines.append("%s %s%d" % [_stat_name(stat), "+" if value >= 0 else "", value])
+	if float(item.get("crit_bonus", 0.0)) > 0.0:
+		lines.append("Crit damage +%d%%" % int(roundf(float(item["crit_bonus"]) * 100.0)))
+	return "\n".join(lines) if not lines.is_empty() else "No stat changes"
+
+
+func _stat_name(stat: String) -> String:
+	return str(Stats.SKILLS.get(stat, {}).get("name", stat.capitalize()))
+
+
+func _price_text(id: String, item: Dictionary) -> String:
+	var price := Profile.item_price(id)
 	var parts: Array[String] = []
 	if int(item["price_silver"]) > 0:
-		parts.append("%d Silver" % int(item["price_silver"]))
+		parts.append(_price_part(int(item["price_silver"]), int(price["silver"]), "Silver"))
 	if int(item["price_trinkets"]) > 0:
-		parts.append("%d Trinkets" % int(item["price_trinkets"]))
-	if parts.is_empty():
-		return "Free"
-	return " + ".join(parts) + "   (unlocks at LV %d)" % int(item["unlock_level"])
+		parts.append(_price_part(int(item["price_trinkets"]), int(price["trinkets"]), "Trinkets"))
+	var text := "Free" if parts.is_empty() else " + ".join(parts)
+	text += "   (unlocks at LV %d)" % int(item["unlock_level"])
+	var requirements: Dictionary = item.get("stat_requirements", {})
+	if not requirements.is_empty():
+		var req_parts: Array[String] = []
+		for stat: String in requirements:
+			req_parts.append("%s %d" % [_stat_name(stat), int(requirements[stat])])
+		text += "\nRequires: %s" % ", ".join(req_parts)
+	return text
+
+
+## Shows the Intelligence discount: "24000 -> 21120 Silver".
+func _price_part(base: int, discounted: int, currency: String) -> String:
+	if discounted < base:
+		return "%d -> %d %s" % [base, discounted, currency]
+	return "%d %s" % [base, currency]
 
 
 func _on_action_button_pressed() -> void:

@@ -6,8 +6,12 @@ extends Node2D
 ## World geometry, SpawnPoints/Blue*, SpawnPoints/Red*, optional KillZone.
 
 const PLAYER_SCENE := preload("res://scenes/game/player.tscn")
+const MEDKIT_SCENE := preload("res://scenes/game/medkit.tscn")
 
 var map_node: Node2D = null
+
+var _medkit_seq: int = 0
+var _medkits: Dictionary = {}
 
 @onready var players_root: Node2D = $Players
 
@@ -72,6 +76,41 @@ func get_spawn_position(team: int) -> Vector2:
 	if candidates.is_empty():
 		candidates = spawn_points.get_children()
 	return (candidates.pick_random() as Node2D).global_position
+
+
+# ------------------------------------------------------------- medkits ---
+# The server owns medkit lifecycle; peers spawn/remove local copies via the
+# RPCs below (the arena scene root has the same node path on every peer).
+
+## SERVER ONLY: drop a mini-medkit where a player died.
+func drop_medkit(at: Vector2) -> void:
+	if not Net.is_server():
+		return
+	_medkit_seq += 1
+	_spawn_medkit.rpc(_medkit_seq, at)
+
+
+## SERVER ONLY: a medkit was picked up — remove it everywhere.
+func remove_medkit(kit_id: int) -> void:
+	if Net.is_server():
+		_despawn_medkit.rpc(kit_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _spawn_medkit(kit_id: int, at: Vector2) -> void:
+	var kit := MEDKIT_SCENE.instantiate()
+	kit.kit_id = kit_id
+	kit.position = at
+	_medkits[kit_id] = kit
+	add_child(kit)
+
+
+@rpc("authority", "call_local", "reliable")
+func _despawn_medkit(kit_id: int) -> void:
+	var kit: Variant = _medkits.get(kit_id)
+	_medkits.erase(kit_id)
+	if is_instance_valid(kit):
+		(kit as Node).queue_free()
 
 
 func _on_server_lost() -> void:

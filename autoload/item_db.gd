@@ -9,7 +9,7 @@ extends Node
 ## and it automatically appears in the Store, the Profile loadout and (for
 ## weapons) becomes usable in-game. See docs/EXTENDING.md.
 
-enum Category { WEAPON, GRENADE, PERK }
+enum Category { WEAPON, GRENADE, PERK, ARMOR, IMPLANT, AMULET }
 enum WeaponType { PISTOL, SMG, SHOTGUN, RIFLE, SNIPER, LMG, LAUNCHER, EXOTIC }
 
 const WEAPON_TYPE_NAMES: Dictionary = {
@@ -25,9 +25,37 @@ const WEAPON_TYPE_NAMES: Dictionary = {
 
 var ITEMS: Dictionary = {}
 
+# Precomputed indexes (id lists in insertion order) so the Store and other
+# UI never have to scan the whole database — keeps lookups O(1) as the
+# item count grows.
+var _ids_by_category: Dictionary = {}
+var _ids_by_weapon_type: Dictionary = {}
+var _all_weapon_ids: Array[String] = []
+
 
 func _init() -> void:
 	_build_items()
+	_build_indexes()
+
+
+func _build_indexes() -> void:
+	_ids_by_category.clear()
+	_ids_by_weapon_type.clear()
+	_all_weapon_ids.clear()
+	for id: String in ITEMS:
+		var item: Dictionary = ITEMS[id]
+		var category := int(item["category"])
+		if not _ids_by_category.has(category):
+			var list: Array[String] = []
+			_ids_by_category[category] = list
+		(_ids_by_category[category] as Array[String]).append(id)
+		if category == Category.WEAPON:
+			_all_weapon_ids.append(id)
+			var weapon_type := int(item["weapon_type"])
+			if not _ids_by_weapon_type.has(weapon_type):
+				var type_list: Array[String] = []
+				_ids_by_weapon_type[weapon_type] = type_list
+			(_ids_by_weapon_type[weapon_type] as Array[String]).append(id)
 
 
 ## Compact weapon entry builder. Args:
@@ -53,6 +81,28 @@ func _w(id: String, type: int, name_: String, desc: String, lvl: int,
 		"spread_deg": spread,
 		"clip_size": clip,
 		"reload_time": reload,
+		"color": color,
+	}
+	entry.merge(extra)
+	ITEMS[id] = entry
+
+
+## Compact equipment entry builder (armor / implants / amulets).
+## stat_mods: stat points granted (negative = penalty), e.g.
+## {"defense": 2, "resilience": 1, "speed": -1}.
+## requirements: minimum total stat points needed to buy, e.g. {"defense": 4}.
+func _g(id: String, category: int, name_: String, desc: String, lvl: int,
+		silver: int, trinkets: int, stat_mods: Dictionary,
+		requirements: Dictionary, color: Color, extra: Dictionary = {}) -> void:
+	var entry := {
+		"name": name_,
+		"category": category,
+		"description": desc,
+		"price_silver": silver,
+		"price_trinkets": trinkets,
+		"unlock_level": lvl,
+		"stat_mods": stat_mods,
+		"stat_requirements": requirements,
 		"color": color,
 	}
 	entry.merge(extra)
@@ -155,9 +205,11 @@ func _build_items() -> void:
 	_w("twin_scope", SN, "Twin Scope DR", "Fast double-tap marksman rifle.",
 		27, 21000, 10, 55, 1.6, false, 3000.0, 1, 0.4, 8, 2.3, Color(0.6, 0.75, 0.85))
 	_w("avalanche_50", SN, "Avalanche .50", "Stops anything that moves. Once.",
-		32, 27000, 25, 120, 0.5, false, 3600.0, 1, 0.0, 3, 3.2, Color(0.85, 0.9, 1.0))
+		32, 27000, 25, 120, 0.5, false, 3600.0, 1, 0.0, 3, 3.2, Color(0.85, 0.9, 1.0),
+		{"stat_requirements": {"accuracy": 5}})
 	_w("eclipse_lr", SN, "Eclipse LR", "The last thing they never see.",
-		38, 34000, 40, 140, 0.45, false, 3800.0, 1, 0.0, 3, 3.4, Color(0.3, 0.3, 0.5))
+		38, 34000, 40, 140, 0.45, false, 3800.0, 1, 0.0, 3, 3.4, Color(0.3, 0.3, 0.5),
+		{"stat_requirements": {"accuracy": 7, "intelligence": 3}})
 
 	# --------------------------------------------------------------- LMGs (8)
 	_w("brute_mg", L, "Brute MG", "Belt-fed suppression on a budget.",
@@ -175,7 +227,8 @@ func _build_items() -> void:
 	_w("titan_feed", L, "Titan Feed", "Endgame support weapon.",
 		35, 30000, 25, 17, 10.0, true, 1900.0, 1, 3.2, 90, 3.8, Color(0.5, 0.6, 0.75))
 	_w("leviathan_mg", L, "Leviathan", "The wall of bullets has a name.",
-		40, 36000, 40, 16, 13.0, true, 1900.0, 1, 3.8, 120, 4.2, Color(0.35, 0.5, 0.6))
+		40, 36000, 40, 16, 13.0, true, 1900.0, 1, 3.8, 120, 4.2, Color(0.35, 0.5, 0.6),
+		{"stat_requirements": {"resilience": 7, "firepower": 6}})
 
 	# ---------------------------------------------------------- launchers (7)
 	_w("lobber_gl", LA, "Lobber GL-1", "Grenade launcher with forgiving arcs.",
@@ -198,7 +251,8 @@ func _build_items() -> void:
 		{"explosive": true, "blast_radius": 140.0})
 	_w("doomsday_lr", LA, "Doomsday Launcher", "The treaty-violation special.",
 		39, 38000, 50, 120, 0.5, false, 1100.0, 1, 0.5, 1, 3.4, Color(0.9, 0.2, 0.2),
-		{"explosive": true, "blast_radius": 170.0})
+		{"explosive": true, "blast_radius": 170.0,
+			"stat_requirements": {"firepower": 8, "resilience": 6}})
 
 	# ------------------------------------------------------------ exotics (7)
 	_w("plasma_carbine", EX, "Plasma Carbine", "Superheated bolts that sizzle past.",
@@ -213,9 +267,14 @@ func _build_items() -> void:
 		34, 15000, 100, 36, 3.4, false, 3000.0, 1, 0.2, 12, 2.2, Color(1.0, 0.85, 0.3))
 	_w("singularity_cannon", EX, "Singularity Cannon", "Fires a very small, very angry star.",
 		38, 18000, 125, 100, 0.45, false, 900.0, 1, 0.0, 1, 3.6, Color(0.4, 0.2, 0.7),
-		{"explosive": true, "blast_radius": 200.0})
+		{"explosive": true, "blast_radius": 200.0,
+			"stat_requirements": {"intelligence": 7}})
 	_w("omega_decimator", EX, "Omega Decimator", "The final word in arena warfare.",
-		45, 25000, 160, 24, 11.0, true, 2300.0, 1, 1.5, 80, 3.0, Color(0.95, 0.3, 0.55))
+		45, 25000, 160, 24, 11.0, true, 2300.0, 1, 1.5, 80, 3.0, Color(0.95, 0.3, 0.55),
+		{"stat_requirements": {"firepower": 9, "intelligence": 5}})
+	_w("magma_gun", EX, "Magma Gun", "Minigun loaded with molten magma rounds. Only for seasoned veterans.",
+		52, 40000, 120, 18, 14.0, true, 1600.0, 1, 3.0, 100, 3.4, Color(1.0, 0.35, 0.05),
+		{"stat_requirements": {"accuracy": 9, "intelligence": 9, "firepower": 10}})
 
 	# ---------------------------------------------------------- grenades ---
 	ITEMS["frag_grenade"] = {
@@ -260,6 +319,67 @@ func _build_items() -> void:
 		"carry_count": 1,
 		"color": Color(0.6, 0.3, 0.3),
 	}
+
+	# ------------------------------------------------------------- armor ---
+	# Equipment grants stat points (see Stats autoload) and is deliberately
+	# very expensive. Negative mods are the price of heavy protection.
+	var AR := Category.ARMOR
+	var IM := Category.IMPLANT
+	var AM := Category.AMULET
+
+	_g("scout_vest", AR, "Scout Vest", "Light recon armor. Mobility first.",
+		12, 15000, 0, {"defense": 1, "speed": 1}, {},
+		Color(0.55, 0.65, 0.55))
+	_g("combat_armor", AR, "Combat Armor", "Standard-issue plating. A bit heavy.",
+		22, 24000, 5, {"defense": 2, "resilience": 1, "speed": -1},
+		{"defense": 2}, Color(0.45, 0.5, 0.6))
+	_g("phantom_weave", AR, "Phantom Weave", "Featherlight smart-fiber suit for duelists.",
+		38, 34000, 20, {"defense": 2, "speed": 2, "accuracy": 1, "resilience": -1},
+		{"speed": 5}, Color(0.4, 0.4, 0.55))
+	_g("juggernaut_plate", AR, "Juggernaut Plate", "A walking bunker. Forget about dodging.",
+		48, 42000, 30, {"defense": 3, "resilience": 4, "speed": -2, "accuracy": -1},
+		{"resilience": 8, "defense": 5}, Color(0.35, 0.4, 0.45))
+	_g("warlord_exo", AR, "Warlord Exoframe", "Powered exoskeleton of arena legends.",
+		60, 55000, 50, {"defense": 3, "resilience": 3, "firepower": 1, "speed": -1},
+		{"resilience": 6, "defense": 6, "speed": 4}, Color(0.6, 0.5, 0.3))
+
+	# ----------------------------------------------------------- implants ---
+	_g("neural_chip", IM, "Neural Chip", "Co-processor wired into the cortex.",
+		15, 16000, 0, {"intelligence": 1}, {},
+		Color(0.4, 0.8, 0.7))
+	_g("reflex_booster", IM, "Reflex Booster", "Overclocked nerves, snappier everything.",
+		26, 25000, 10, {"speed": 1, "accuracy": 1},
+		{"speed": 3}, Color(0.85, 0.7, 0.3))
+	_g("dermal_plating", IM, "Dermal Plating", "Subdermal armor weave. Slightly stiff.",
+		36, 33000, 20, {"defense": 2, "resilience": 2, "speed": -1},
+		{"defense": 4}, Color(0.6, 0.55, 0.5))
+	_g("targeting_module", IM, "Targeting Module", "Ocular ballistics computer.",
+		46, 40000, 30, {"accuracy": 1, "firepower": 2},
+		{"accuracy": 5, "firepower": 5}, Color(0.9, 0.4, 0.35))
+	_g("cortex_amplifier", IM, "Cortex Amplifier", "Genius on tap; trigger finger pays for it.",
+		55, 50000, 40, {"intelligence": 2, "accuracy": 1, "firepower": -1},
+		{"intelligence": 5}, Color(0.5, 0.75, 0.95))
+
+	# ------------------------------------------------------------ amulets ---
+	_g("amulet_vigor", AM, "Amulet of Vigor", "A warm pulse of borrowed life.",
+		18, 18000, 0, {"resilience": 1}, {},
+		Color(0.85, 0.3, 0.35))
+	_g("amulet_fury", AM, "Amulet of Fury", "It hums when blood is spilled.",
+		28, 26000, 10, {"firepower": 1}, {},
+		Color(0.95, 0.5, 0.2))
+	_g("sage_talisman", AM, "Sage Talisman", "Centuries of haggling wisdom inside.",
+		34, 30000, 15, {"intelligence": 1}, {},
+		Color(0.55, 0.85, 0.55))
+	_g("warding_sigil", AM, "Warding Sigil", "Old runes that turn steel aside.",
+		40, 36000, 25, {"defense": 1, "resilience": 1},
+		{"defense": 3}, Color(0.45, 0.6, 0.85))
+	_g("eagle_eye_charm", AM, "Eagle Eye Charm", "Crits strike +20% harder, eyes never blink.",
+		50, 45000, 35, {"accuracy": 1},
+		{"accuracy": 6}, Color(0.95, 0.9, 0.5),
+		{"crit_bonus": 0.2})
+	_g("berserker_totem", AM, "Berserker Totem", "Raw power, thinner skin.",
+		58, 52000, 45, {"firepower": 2, "defense": -1},
+		{"firepower": 8}, Color(0.8, 0.25, 0.25))
 
 	# ------------------------------------------------------------- perks ---
 	ITEMS["light_armor"] = {
@@ -317,22 +437,16 @@ func has_item(id: String) -> bool:
 
 
 func get_items_by_category(category: int) -> Array[String]:
-	var result: Array[String] = []
-	for id: String in ITEMS:
-		if ITEMS[id]["category"] == category:
-			result.append(id)
-	return result
+	var cached: Array[String] = _ids_by_category.get(category, [] as Array[String])
+	return cached.duplicate()
 
 
 ## Weapons of a given WeaponType. Pass -1 for all weapons.
 func get_weapons_by_type(weapon_type: int) -> Array[String]:
-	var result: Array[String] = []
-	for id: String in ITEMS:
-		if ITEMS[id]["category"] != Category.WEAPON:
-			continue
-		if weapon_type == -1 or int(ITEMS[id]["weapon_type"]) == weapon_type:
-			result.append(id)
-	return result
+	if weapon_type == -1:
+		return _all_weapon_ids.duplicate()
+	var cached: Array[String] = _ids_by_weapon_type.get(weapon_type, [] as Array[String])
+	return cached.duplicate()
 
 
 func category_name(category: int) -> String:
@@ -343,6 +457,12 @@ func category_name(category: int) -> String:
 			return "Grenades"
 		Category.PERK:
 			return "Perks"
+		Category.ARMOR:
+			return "Armor"
+		Category.IMPLANT:
+			return "Implants"
+		Category.AMULET:
+			return "Amulets"
 	return "Other"
 
 

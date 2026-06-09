@@ -118,6 +118,43 @@ unique_name_in_owner = true
 layout_mode = 2
 text = ""
 
+[node name="SkillsCol" type="VBoxContainer" parent="Margin/VBox/Main"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="SkillsTitle" type="Label" parent="Margin/VBox/Main/SkillsCol"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.7, 1, 1)
+text = "Skills"
+
+[node name="PointsLabel" type="Label" parent="Margin/VBox/Main/SkillsCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
+text = "Skill points: 0"
+
+[node name="SkillsBox" type="VBoxContainer" parent="Margin/VBox/Main/SkillsCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="SkillStatus" type="Label" parent="Margin/VBox/Main/SkillsCol"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.6, 0.4, 1)
+text = ""
+
+[node name="DerivedTitle" type="Label" parent="Margin/VBox/Main/SkillsCol"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.7, 1, 1)
+text = "Combat stats (with gear)"
+
+[node name="DerivedLabel" type="Label" parent="Margin/VBox/Main/SkillsCol"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+
 [node name="Right" type="VBoxContainer" parent="Margin/VBox/Main"]
 layout_mode = 2
 size_flags_horizontal = 3
