@@ -126,9 +126,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _update_profile_info() -> void:
 	level_label.text = str(Profile.level)
-	exp_bar.max_value = Profile.xp_needed(Profile.level)
-	exp_bar.value = Profile.xp
-	exp_label.text = "EXP  %d / %d" % [Profile.xp, Profile.xp_needed(Profile.level)]
+	if Profile.is_max_level():
+		exp_bar.max_value = 1
+		exp_bar.value = 1
+		exp_label.text = "EXP  MAX"
+	else:
+		exp_bar.max_value = Profile.xp_needed(Profile.level)
+		exp_bar.value = Profile.xp
+		exp_label.text = "EXP  %d / %d" % [Profile.xp, Profile.xp_needed(Profile.level)]
 	silver_label.text = str(Profile.silver)
 	trinkets_label.text = str(Profile.trinkets)
 

@@ -44,14 +44,23 @@ const FAST_FALL_SPEED := 1750.0
 const FAST_FALL_GRAVITY_MULT := 1.8
 
 const RESPAWN_DELAY := 3.0
-const BASE_MAX_HP := 100
+
+# Fall damage: kept deliberately mild. Falls below the safe distance are
+# free; beyond it 1 HP per step, and very long drops (heavy excess) add
+# extra HP per smaller step. Capped at a fraction of max HP so even the
+# tallest map cannot one-shot a player.
+const FALL_SAFE_DISTANCE := 500.0
+const FALL_DAMAGE_STEP := 100.0
+const FALL_HEAVY_EXCESS := 900.0
+const FALL_HEAVY_STEP := 50.0
+const FALL_DAMAGE_CAP_RATIO := 0.15
 
 const TEAM_COLORS: Array[Color] = [Color(0.3, 0.62, 1.0), Color(0.95, 0.3, 0.3)]
 
 var peer_id: int = 1
 var team: int = 0
-var max_hp: int = BASE_MAX_HP
-var hp: int = BASE_MAX_HP
+var max_hp: int = 200
+var hp: int = 200
 var dead: bool = false
 var grenades_left: int = 0
 
@@ -60,6 +69,9 @@ var aim_angle: float = 0.0
 var weapon_id: String = "pistol"
 var perk_id: String = ""
 var grenade_id: String = ""
+# Total stat points (skills + gear) of this player's profile. Replicated so
+# the server can compute max HP / defense and peers can show accurate bars.
+var combat_stats: Dictionary = {}
 
 var ammo_in_clip: int = 0
 var reloading: bool = false
@@ -76,6 +88,8 @@ var _dash_timer: float = 0.0
 var _dash_cooldown: float = 0.0
 var _dash_dir: float = 1.0
 var _air_dash_used: bool = false
+var _airborne: bool = false
+var _fall_peak_y: float = 0.0
 
 @onready var body_shape: CollisionShape2D = $CollisionShape2D
 @onready var body_visual: Polygon2D = $BodyVisual
@@ -97,6 +111,7 @@ func _ready() -> void:
 		weapon_id = str(Profile.loadout.get("weapon", "pistol"))
 		perk_id = str(Profile.loadout.get("perk", ""))
 		grenade_id = str(Profile.loadout.get("grenade", ""))
+		combat_stats = Profile.combat_stats()
 		_apply_mode_weapon()
 		camera.enabled = true
 		camera.make_current()
@@ -118,7 +133,7 @@ func _apply_mode_weapon() -> void:
 func _apply_loadout() -> void:
 	var weapon: Dictionary = ItemDB.get_item(weapon_id)
 	ammo_in_clip = int(weapon.get("clip_size", 0))
-	max_hp = BASE_MAX_HP
+	max_hp = Stats.max_hp(combat_stats)
 	var perk: Dictionary = ItemDB.get_item(perk_id)
 	if not perk.is_empty():
 		max_hp += int(perk.get("max_hp_bonus", 0))
@@ -150,10 +165,11 @@ func _refresh_identity() -> void:
 
 
 func speed() -> float:
-	var mult := 1.0
+	# BASE_SPEED corresponds to the abstract speed value 120 (see Stats).
+	var mult := Stats.speed_scale(combat_stats)
 	var perk: Dictionary = ItemDB.get_item(perk_id)
 	if not perk.is_empty():
-		mult = float(perk.get("speed_mult", 1.0))
+		mult *= float(perk.get("speed_mult", 1.0))
 	return BASE_SPEED * mult
 
 
@@ -181,8 +197,42 @@ func _physics_process(delta: float) -> void:
 		_air_dash_used = false
 	_coyote_timer = maxf(0.0, _coyote_timer - delta)
 	move_and_slide()
+	if is_multiplayer_authority() and not dead:
+		_track_fall()
 	gun.rotation = aim_angle
 	gun.scale.y = -1.0 if absf(aim_angle) > PI / 2.0 else 1.0
+
+
+## AUTHORITY ONLY: measures the distance from the highest airborne point
+## to the landing spot and asks the server for fall damage when it exceeds
+## the safe threshold. Wall slides reset the measurement (controlled descent).
+func _track_fall() -> void:
+	if is_on_floor():
+		if _airborne:
+			_airborne = false
+			var fall_distance := global_position.y - _fall_peak_y
+			var damage := fall_damage_for(fall_distance, max_hp)
+			if damage > 0:
+				_request_fall_damage.rpc_id(1, damage)
+		return
+	if not _airborne:
+		_airborne = true
+		_fall_peak_y = global_position.y
+	else:
+		_fall_peak_y = minf(_fall_peak_y, global_position.y)
+	if _is_wall_sliding():
+		_fall_peak_y = global_position.y
+
+
+## Pure fall-damage curve, also exercised by tests.
+static func fall_damage_for(distance: float, hp_cap: int) -> int:
+	var excess := distance - FALL_SAFE_DISTANCE
+	if excess <= 0.0:
+		return 0
+	var damage := 1 + int(excess / FALL_DAMAGE_STEP)
+	if excess > FALL_HEAVY_EXCESS:
+		damage += int((excess - FALL_HEAVY_EXCESS) / FALL_HEAVY_STEP)
+	return mini(damage, int(ceil(float(hp_cap) * FALL_DAMAGE_CAP_RATIO)))
 
 
 func _is_wall_sliding() -> bool:
@@ -321,8 +371,15 @@ func _shoot(from: Vector2, angle: float) -> void:
 		return
 	var pellets := int(weapon.get("pellets", 1))
 	var spread := deg_to_rad(float(weapon.get("spread_deg", 0.0)))
+	# Firepower scales damage; crits and accuracy jitter are rolled per shot.
+	# Each peer rolls independently for its local visuals — only the server's
+	# projectile deals damage, so its roll is the authoritative one.
+	var damage := int(roundf(float(weapon.get("damage", 10)) * Stats.damage_mult(combat_stats)))
+	if randf() < Stats.crit_chance(combat_stats):
+		damage = int(roundf(float(damage) * Stats.crit_damage_mult(combat_stats)))
+	var jitter := deg_to_rad((1.0 - Stats.accuracy(combat_stats)) * 8.0)
 	for i in pellets:
-		var pellet_angle := angle
+		var pellet_angle := angle + randf_range(-jitter, jitter)
 		if pellets > 1:
 			pellet_angle += lerpf(-spread, spread, float(i) / float(pellets - 1))
 		elif spread > 0.0:
@@ -331,7 +388,7 @@ func _shoot(from: Vector2, angle: float) -> void:
 		projectile.setup(
 			peer_id, team, from,
 			Vector2.from_angle(pellet_angle) * float(weapon.get("projectile_speed", 1400.0)),
-			int(weapon.get("damage", 10)),
+			damage,
 			Color(weapon.get("color", Color.WHITE)),
 			bool(weapon.get("explosive", false)),
 			float(weapon.get("blast_radius", 0.0)))
@@ -356,16 +413,47 @@ func _throw_grenade(from: Vector2, direction: Vector2) -> void:
 # ------------------------------------------------------- health (server) ---
 
 ## SERVER ONLY: apply damage. attacker_id used for the kill feed / score.
+## The victim's Defense stat absorbs up to 42% of any incoming damage.
 func take_damage(amount: int, attacker_id: int) -> void:
 	if not Net.is_server() or dead:
 		return
+	if amount > 0:
+		amount = maxi(1, int(ceilf(float(amount) * (1.0 - Stats.defense_ratio(combat_stats)))))
 	hp = maxi(0, hp - amount)
 	_sync_hp.rpc(hp)
 	if hp == 0:
 		dead = true
 		Game.report_kill(peer_id, attacker_id)
+		_drop_medkit()
 		_die.rpc()
 		_respawn_later()
+
+
+## SERVER ONLY: restore HP (medkits). Clamped to max HP.
+func heal(amount: int) -> void:
+	if not Net.is_server() or dead or amount <= 0:
+		return
+	hp = mini(max_hp, hp + amount)
+	_sync_hp.rpc(hp)
+
+
+func _drop_medkit() -> void:
+	var arena: Node = get_tree().get_first_node_in_group("arena")
+	if arena and arena.has_method("drop_medkit"):
+		arena.drop_medkit(global_position)
+
+
+## Sent by the owning client when it lands hard. The server sanity-caps the
+## amount (fall damage can never exceed the design cap) before applying it.
+@rpc("any_peer", "call_local", "reliable")
+func _request_fall_damage(amount: int) -> void:
+	if not Net.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != peer_id:
+		return  # only the owner may report their own fall
+	amount = clampi(amount, 0, int(ceilf(float(max_hp) * FALL_DAMAGE_CAP_RATIO)))
+	take_damage(amount, peer_id)
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -408,11 +496,14 @@ func _respawn(at: Vector2) -> void:
 	visible = true
 	body_shape.set_deferred("disabled", false)
 	if is_multiplayer_authority():
+		# Pick up skill upgrades / gear changes made since the last spawn.
+		combat_stats = Profile.combat_stats()
 		_apply_mode_weapon()
 	_apply_loadout()
 	_dash_timer = 0.0
 	_dash_cooldown = 0.0
 	_air_dash_used = false
+	_airborne = false
 	_update_bars()
 	local_state_changed.emit()
 

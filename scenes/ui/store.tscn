@@ -93,6 +93,27 @@ custom_minimum_size = Vector2(140, 36)
 toggle_mode = true
 text = "Perks"
 
+[node name="ArmorTab" type="Button" parent="Margin/VBox/Tabs"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(120, 36)
+toggle_mode = true
+text = "Armor"
+
+[node name="ImplantsTab" type="Button" parent="Margin/VBox/Tabs"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(120, 36)
+toggle_mode = true
+text = "Implants"
+
+[node name="AmuletsTab" type="Button" parent="Margin/VBox/Tabs"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(120, 36)
+toggle_mode = true
+text = "Amulets"
+
 [node name="TabSpacer" type="Control" parent="Margin/VBox/Tabs"]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -173,6 +194,9 @@ text = ""
 [connection signal="pressed" from="Margin/VBox/Tabs/WeaponsTab" to="." method="_on_weapons_tab_pressed"]
 [connection signal="pressed" from="Margin/VBox/Tabs/GrenadesTab" to="." method="_on_grenades_tab_pressed"]
 [connection signal="pressed" from="Margin/VBox/Tabs/PerksTab" to="." method="_on_perks_tab_pressed"]
+[connection signal="pressed" from="Margin/VBox/Tabs/ArmorTab" to="." method="_on_armor_tab_pressed"]
+[connection signal="pressed" from="Margin/VBox/Tabs/ImplantsTab" to="." method="_on_implants_tab_pressed"]
+[connection signal="pressed" from="Margin/VBox/Tabs/AmuletsTab" to="." method="_on_amulets_tab_pressed"]
 [connection signal="item_selected" from="Margin/VBox/Tabs/ClassFilter" to="." method="_on_class_filter_item_selected"]
 [connection signal="item_selected" from="Margin/VBox/Main/ItemList" to="." method="_on_item_selected"]
 [connection signal="pressed" from="Margin/VBox/Main/Details/DetailMargin/DetailVBox/ActionButton" to="." method="_on_action_button_pressed"]

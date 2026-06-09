@@ -24,6 +24,9 @@ properties/4/replication_mode = 2
 properties/5/path = NodePath(".:grenade_id")
 properties/5/spawn = true
 properties/5/replication_mode = 2
+properties/6/path = NodePath(".:combat_stats")
+properties/6/spawn = true
+properties/6/replication_mode = 2
 
 [node name="Player" type="CharacterBody2D" groups=["players"]]
 collision_layer = 2
