@@ -1,23 +1,45 @@
 extends Node2D
-## Match scene. The SERVER owns the lifecycle of player nodes: it spawns one
-## per registered peer (drop-in / drop-out) and the MultiplayerSpawner
-## replicates them to every client. Layout is placeholder geometry — replace
-## or add maps by building new scenes with the same node contract
-## (Players, SpawnPoints/Blue*, SpawnPoints/Red*, group "arena").
+## Match scene. Loads the selected map from res://maps/ (see MapDB) and lets
+## the SERVER own the lifecycle of player nodes: it spawns one per registered
+## peer (drop-in / drop-out) and the MultiplayerSpawner replicates them to
+## every client. Maps are script-less scenes following the node contract:
+## World geometry, SpawnPoints/Blue*, SpawnPoints/Red*, optional KillZone.
 
 const PLAYER_SCENE := preload("res://scenes/game/player.tscn")
 
+var map_node: Node2D = null
+
 @onready var players_root: Node2D = $Players
-@onready var spawn_points: Node2D = $SpawnPoints
 
 
 func _ready() -> void:
 	add_to_group("arena")
+	_load_map()
+	Game.match_config_changed.connect(_on_match_config_changed)
 	Net.player_list_changed.connect(_sync_player_nodes)
 	Net.server_disconnected.connect(_on_server_lost)
 	Net.connection_failed.connect(func(_reason: String) -> void: _on_server_lost())
 	if Net.is_server():
 		_sync_player_nodes()
+
+
+func _load_map() -> void:
+	if is_instance_valid(map_node):
+		map_node.queue_free()
+	var info := MapDB.get_map(Game.map_id)
+	var packed: PackedScene = load(str(info["scene"]))
+	map_node = packed.instantiate()
+	add_child(map_node)
+	move_child(map_node, 0)  # draw the world behind the players
+	var kill_zone: Area2D = map_node.get_node_or_null("KillZone")
+	if kill_zone:
+		kill_zone.body_entered.connect(_on_kill_zone_body_entered)
+
+
+func _on_match_config_changed() -> void:
+	# Late config sync (e.g. a client that joined before receiving the map).
+	if is_instance_valid(map_node) and map_node.scene_file_path != str(MapDB.get_map(Game.map_id)["scene"]):
+		_load_map()
 
 
 func _sync_player_nodes() -> void:
@@ -39,6 +61,9 @@ func _spawn_player(peer_id: int) -> void:
 
 
 func get_spawn_position(team: int) -> Vector2:
+	if not is_instance_valid(map_node):
+		return Vector2.ZERO
+	var spawn_points: Node2D = map_node.get_node("SpawnPoints")
 	var prefix := "Blue" if team == Net.Team.BLUE else "Red"
 	var candidates: Array[Node] = []
 	for point in spawn_points.get_children():

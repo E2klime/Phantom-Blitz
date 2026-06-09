@@ -1,9 +1,11 @@
 extends Control
-## Store — browse the ItemDB by category, buy with coins/gold, equip.
+## Store — browse the ItemDB by category, buy with Silver/Trinkets, equip.
+## Weapons can additionally be filtered by class (pistol ... exotic).
 
-@onready var coins_label: Label = %CoinsLabel
-@onready var gold_label: Label = %GoldLabel
+@onready var silver_label: Label = %SilverLabel
+@onready var trinkets_label: Label = %TrinketsLabel
 @onready var item_list: ItemList = %ItemList
+@onready var class_filter: OptionButton = %ClassFilter
 @onready var detail_name: Label = %DetailName
 @onready var detail_desc: Label = %DetailDesc
 @onready var detail_stats: Label = %DetailStats
@@ -13,18 +15,28 @@ extends Control
 @onready var category_buttons: Array[Button] = [%WeaponsTab, %GrenadesTab, %PerksTab]
 
 var _category: int = ItemDB.Category.WEAPON
+var _weapon_class: int = -1  # -1 = all classes
 var _ids: Array[String] = []
 
 
 func _ready() -> void:
 	Profile.profile_changed.connect(_refresh_wallet)
 	_refresh_wallet()
+	_populate_class_filter()
 	_select_category(ItemDB.Category.WEAPON)
 
 
 func _refresh_wallet() -> void:
-	coins_label.text = "%d ¢" % Profile.coins
-	gold_label.text = "%d G" % Profile.gold
+	silver_label.text = "%d Silver" % Profile.silver
+	trinkets_label.text = "%d Trinkets" % Profile.trinkets
+
+
+func _populate_class_filter() -> void:
+	class_filter.clear()
+	class_filter.add_item("All classes")
+	for weapon_type: int in ItemDB.WEAPON_TYPE_NAMES:
+		class_filter.add_item(ItemDB.weapon_type_name(weapon_type))
+	class_filter.select(0)
 
 
 func _on_weapons_tab_pressed() -> void:
@@ -39,16 +51,25 @@ func _on_perks_tab_pressed() -> void:
 	_select_category(ItemDB.Category.PERK)
 
 
+func _on_class_filter_item_selected(index: int) -> void:
+	_weapon_class = index - 1  # item 0 is "All classes"
+	_refresh_items()
+
+
 func _select_category(category: int) -> void:
 	_category = category
 	for i in category_buttons.size():
 		category_buttons[i].button_pressed = i == category
+	class_filter.visible = category == ItemDB.Category.WEAPON
 	_refresh_items()
 
 
 func _refresh_items() -> void:
 	item_list.clear()
-	_ids = ItemDB.get_items_by_category(_category)
+	if _category == ItemDB.Category.WEAPON:
+		_ids = ItemDB.get_weapons_by_type(_weapon_class)
+	else:
+		_ids = ItemDB.get_items_by_category(_category)
 	for id in _ids:
 		var item: Dictionary = ItemDB.get_item(id)
 		var suffix := ""
@@ -95,9 +116,13 @@ func _show_details(index: int) -> void:
 func _stats_text(item: Dictionary) -> String:
 	match int(item["category"]):
 		ItemDB.Category.WEAPON:
-			return "Damage: %d   Rate: %.1f/s\nClip: %d   Reload: %.1fs" % [
+			var text := "Class: %s\nDamage: %d   Rate: %.1f/s\nClip: %d   Reload: %.1fs" % [
+				ItemDB.weapon_type_name(int(item["weapon_type"])),
 				int(item["damage"]), float(item["fire_rate"]),
 				int(item["clip_size"]), float(item["reload_time"])]
+			if bool(item.get("explosive", false)):
+				text += "\nExplosive (blast radius %d)" % int(item.get("blast_radius", 0))
+			return text
 		ItemDB.Category.GRENADE:
 			return "Damage: %d   Radius: %d\nCarry: %d" % [
 				int(item["damage"]), int(item["radius"]), int(item["carry_count"])]
@@ -109,10 +134,10 @@ func _stats_text(item: Dictionary) -> String:
 
 func _price_text(item: Dictionary) -> String:
 	var parts: Array[String] = []
-	if int(item["price_coins"]) > 0:
-		parts.append("%d ¢" % int(item["price_coins"]))
-	if int(item["price_gold"]) > 0:
-		parts.append("%d G" % int(item["price_gold"]))
+	if int(item["price_silver"]) > 0:
+		parts.append("%d Silver" % int(item["price_silver"]))
+	if int(item["price_trinkets"]) > 0:
+		parts.append("%d Trinkets" % int(item["price_trinkets"]))
 	if parts.is_empty():
 		return "Free"
 	return " + ".join(parts) + "   (unlocks at LV %d)" % int(item["unlock_level"])

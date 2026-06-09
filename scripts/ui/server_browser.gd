@@ -11,6 +11,7 @@ extends Control
 @onready var host_port_edit: LineEdit = %HostPortEdit
 @onready var host_name_edit: LineEdit = %HostNameEdit
 @onready var join_button: Button = %JoinButton
+@onready var host_config_label: Label = %HostConfigLabel
 
 var _connecting: bool = false
 
@@ -20,6 +21,9 @@ func _ready() -> void:
 	Net.connection_succeeded.connect(_on_connected)
 	Net.connection_failed.connect(_on_connection_failed)
 	_refresh_list()
+	host_config_label.text = "Will host: %s on %s (change in main menu)" % [
+		str(Game.mode_info()["name"]), str(MapDB.get_map(Game.map_id)["name"])
+	]
 	if OS.has_feature("web"):
 		%HostBox.hide()
 		status_label.text = "Web build: join servers started with --websocket."
@@ -67,7 +71,9 @@ func _join(address: String, port: int) -> void:
 
 
 func _on_connected() -> void:
-	Game.start_match()
+	# The server replies with Game._sync_match_config, which moves us into the
+	# arena once we know the mode and map. Just report progress here.
+	_set_status("Connected — waiting for match info...")
 
 
 func _on_connection_failed(reason: String) -> void:

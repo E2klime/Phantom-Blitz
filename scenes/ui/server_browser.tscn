@@ -138,6 +138,14 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.8, 1)
 text = "Host a game"
 
+[node name="HostConfigLabel" type="Label" parent="Margin/VBox/Main/Right/HostBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.55, 0.6, 0.66, 1)
+text = ""
+autowrap_mode = 2
+
 [node name="HostNameEdit" type="LineEdit" parent="Margin/VBox/Main/Right/HostBox"]
 unique_name_in_owner = true
 layout_mode = 2

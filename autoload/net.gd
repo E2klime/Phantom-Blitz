@@ -187,8 +187,10 @@ func _register_player(name_: String, level_: int) -> void:
 	}
 	_broadcast_players()
 	player_list_changed.emit()
-	# Bring the late joiner up to date with the current match score.
+	# Bring the late joiner up to date with the match config and score.
+	# The config RPC also moves the joiner into the arena.
 	Game._sync_score.rpc_id(sender, Game.team_scores[0], Game.team_scores[1])
+	Game._sync_match_config.rpc_id(sender, Game.mode, Game.map_id)
 
 
 func _broadcast_players() -> void:
@@ -208,6 +210,17 @@ func record_kill(killer_id: int, victim_id: int) -> void:
 		players[killer_id]["kills"] = int(players[killer_id]["kills"]) + 1
 	if players.has(victim_id):
 		players[victim_id]["deaths"] = int(players[victim_id]["deaths"]) + 1
+	_broadcast_players()
+	player_list_changed.emit()
+
+
+## SERVER ONLY: wipe per-match stats when a new round starts.
+func reset_stats() -> void:
+	if not is_server():
+		return
+	for id: int in players:
+		players[id]["kills"] = 0
+		players[id]["deaths"] = 0
 	_broadcast_players()
 	player_list_changed.emit()
 

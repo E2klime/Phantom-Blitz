@@ -47,7 +47,8 @@ func _explode() -> void:
 			var dist := position.distance_to(player.global_position)
 			if dist > radius:
 				continue
-			if player.peer_id != thrower_id and player.team == thrower_team and Net.is_online:
+			if player.peer_id != thrower_id and player.team == thrower_team \
+					and not Game.friendly_fire() and Net.is_online:
 				continue
 			var falloff := 1.0 - (dist / radius) * 0.5
 			player.take_damage(int(damage * falloff), thrower_id)
