@@ -8,14 +8,41 @@ extends CharacterBody2D
 ##     everyone with RPCs — clients can never set their own HP.
 ##   * Shooting is announced by the owner (call_local RPC). Every peer spawns
 ##     a local projectile for visuals; only the server's copy deals damage.
+##
+## Movement feature set (all tunables below):
+##   acceleration / friction with reduced air control, coyote time, jump
+##   buffering, variable jump height (release to cut), double jump, wall
+##   slide + wall jump, dash with cooldown (one per airtime), fast fall
+##   and fall speed caps.
 
 const PROJECTILE_SCENE := preload("res://scenes/game/projectile.tscn")
 const GRENADE_SCENE := preload("res://scenes/game/grenade.tscn")
 
 const BASE_SPEED := 360.0
-const JUMP_VELOCITY := -640.0
+const GROUND_ACCEL := 3400.0
+const GROUND_FRICTION := 3000.0
+const AIR_ACCEL := 2100.0
+const AIR_FRICTION := 420.0
+
+const JUMP_VELOCITY := -760.0
+const DOUBLE_JUMP_FACTOR := 0.9
+const JUMP_CUT_FACTOR := 0.45
+const JUMP_BUFFER_TIME := 0.12
 const MAX_JUMPS := 2
 const COYOTE_TIME := 0.1
+
+const WALL_SLIDE_SPEED := 150.0
+const WALL_JUMP_VELOCITY := -700.0
+const WALL_JUMP_PUSH := 460.0
+
+const DASH_SPEED := 950.0
+const DASH_TIME := 0.16
+const DASH_COOLDOWN := 0.9
+
+const MAX_FALL_SPEED := 1300.0
+const FAST_FALL_SPEED := 1750.0
+const FAST_FALL_GRAVITY_MULT := 1.8
+
 const RESPAWN_DELAY := 3.0
 const BASE_MAX_HP := 100
 
@@ -37,11 +64,18 @@ var grenade_id: String = ""
 var ammo_in_clip: int = 0
 var reloading: bool = false
 
+var _move_axis: float = 0.0
 var _jumps_used: int = 0
 var _coyote_timer: float = 0.0
+var _jump_buffer: float = 0.0
 var _fire_cooldown: float = 0.0
 var _reload_timer: float = 0.0
 var _was_jump_held: bool = false
+var _fast_fall_held: bool = false
+var _dash_timer: float = 0.0
+var _dash_cooldown: float = 0.0
+var _dash_dir: float = 1.0
+var _air_dash_used: bool = false
 
 @onready var body_shape: CollisionShape2D = $CollisionShape2D
 @onready var body_visual: Polygon2D = $BodyVisual
@@ -63,6 +97,7 @@ func _ready() -> void:
 		weapon_id = str(Profile.loadout.get("weapon", "pistol"))
 		perk_id = str(Profile.loadout.get("perk", ""))
 		grenade_id = str(Profile.loadout.get("grenade", ""))
+		_apply_mode_weapon()
 		camera.enabled = true
 		camera.make_current()
 	_apply_loadout()
@@ -70,6 +105,14 @@ func _ready() -> void:
 	Net.player_list_changed.connect(_refresh_identity)
 	hp = max_hp
 	_update_bars()
+
+
+## Modes can override the equipped weapon (Instagib rail, Gun Game ladder).
+func _apply_mode_weapon() -> void:
+	if not Game.forced_weapon().is_empty():
+		weapon_id = Game.forced_weapon()
+	elif bool(Game.mode_info()["gun_ladder"]):
+		weapon_id = Game.gun_game_weapon_for(peer_id)
 
 
 func _apply_loadout() -> void:
@@ -91,7 +134,19 @@ func _refresh_identity() -> void:
 		name_label.text = str(Net.players[peer_id]["name"])
 	else:
 		name_label.text = "Player %d" % peer_id
-	body_visual.color = TEAM_COLORS[team]
+	if Game.is_team_mode():
+		body_visual.color = TEAM_COLORS[team]
+	else:
+		# FFA-style modes: a stable distinct color per player.
+		body_visual.color = Color.from_hsv(fposmod(float(peer_id) * 0.137, 1.0), 0.65, 0.95)
+	# Gun Game: the ladder weapon follows the synced kill count.
+	if is_multiplayer_authority() and bool(Game.mode_info()["gun_ladder"]):
+		var ladder_weapon := Game.gun_game_weapon_for(peer_id)
+		if ladder_weapon != weapon_id:
+			weapon_id = ladder_weapon
+			reloading = false
+			ammo_in_clip = int(ItemDB.get_item(weapon_id).get("clip_size", 0))
+			local_state_changed.emit()
 
 
 func speed() -> float:
@@ -107,15 +162,33 @@ func speed() -> float:
 func _physics_process(delta: float) -> void:
 	if is_multiplayer_authority() and not dead:
 		_handle_input(delta)
-	if not is_on_floor():
-		velocity += get_gravity() * delta
+
+	if _dash_timer > 0.0:
+		# Dash: locked horizontal burst, no gravity.
+		velocity.x = _dash_dir * DASH_SPEED
+		velocity.y = 0.0
+	elif not is_on_floor():
+		var gravity := get_gravity() * delta
+		if _fast_fall_held and velocity.y > 0.0:
+			gravity *= FAST_FALL_GRAVITY_MULT
+		velocity += gravity
+		if _is_wall_sliding():
+			velocity.y = minf(velocity.y, WALL_SLIDE_SPEED)
+		velocity.y = minf(velocity.y, FAST_FALL_SPEED if _fast_fall_held else MAX_FALL_SPEED)
 	else:
 		_jumps_used = 0
 		_coyote_timer = COYOTE_TIME
+		_air_dash_used = false
 	_coyote_timer = maxf(0.0, _coyote_timer - delta)
 	move_and_slide()
 	gun.rotation = aim_angle
 	gun.scale.y = -1.0 if absf(aim_angle) > PI / 2.0 else 1.0
+
+
+func _is_wall_sliding() -> bool:
+	return is_on_wall_only() and velocity.y > 0.0 \
+		and signf(_move_axis) != 0.0 \
+		and signf(_move_axis) == -signf(get_wall_normal().x)
 
 
 func _handle_input(delta: float) -> void:
@@ -123,6 +196,8 @@ func _handle_input(delta: float) -> void:
 	var jump_held := Input.is_action_pressed("jump")
 	var shoot_held := Input.is_action_pressed("shoot")
 	var grenade_pressed := Input.is_action_just_pressed("grenade")
+	var dash_pressed := Input.is_action_just_pressed("dash")
+	_fast_fall_held = Input.is_action_pressed("fast_fall")
 
 	if TouchInput.active:
 		if absf(TouchInput.move_axis) > 0.2:
@@ -131,24 +206,68 @@ func _handle_input(delta: float) -> void:
 		shoot_held = shoot_held or TouchInput.shoot_held
 		grenade_pressed = grenade_pressed or TouchInput.grenade_pressed
 		TouchInput.grenade_pressed = false
+		dash_pressed = dash_pressed or TouchInput.dash_pressed
+		TouchInput.dash_pressed = false
 		if TouchInput.aim_vector.length() > 0.3:
 			aim_angle = TouchInput.aim_vector.angle()
+		# Pushing the move stick all the way down = fast fall.
+		_fast_fall_held = _fast_fall_held or TouchInput.move_axis_y > 0.85
 	else:
 		aim_angle = (get_global_mouse_position() - global_position).angle()
+	_move_axis = axis
 
-	velocity.x = axis * speed()
+	# ------------------------------------------------------------ movement --
+	_dash_cooldown = maxf(0.0, _dash_cooldown - delta)
+	if _dash_timer > 0.0:
+		_dash_timer -= delta
+	else:
+		var target := axis * speed()
+		if absf(axis) > 0.05:
+			var accel := GROUND_ACCEL if is_on_floor() else AIR_ACCEL
+			velocity.x = move_toward(velocity.x, target, accel * delta)
+		else:
+			var friction := GROUND_FRICTION if is_on_floor() else AIR_FRICTION
+			velocity.x = move_toward(velocity.x, 0.0, friction * delta)
 
+	# Jump buffering + edge detection (works for keyboard and touch).
 	var jump_just_pressed := jump_held and not _was_jump_held
+	var jump_released := not jump_held and _was_jump_held
 	_was_jump_held = jump_held
 	if jump_just_pressed:
+		_jump_buffer = JUMP_BUFFER_TIME
+	else:
+		_jump_buffer = maxf(0.0, _jump_buffer - delta)
+
+	if _jump_buffer > 0.0:
 		if is_on_floor() or _coyote_timer > 0.0:
 			velocity.y = JUMP_VELOCITY
 			_jumps_used = 1
 			_coyote_timer = 0.0
+			_jump_buffer = 0.0
+		elif is_on_wall_only():
+			# Wall jump: kick up and away from the wall.
+			velocity.y = WALL_JUMP_VELOCITY
+			velocity.x = get_wall_normal().x * WALL_JUMP_PUSH
+			_jumps_used = 1
+			_jump_buffer = 0.0
 		elif _jumps_used < MAX_JUMPS:
-			velocity.y = JUMP_VELOCITY * 0.85
+			velocity.y = JUMP_VELOCITY * DOUBLE_JUMP_FACTOR
 			_jumps_used += 1
+			_jump_buffer = 0.0
 
+	# Variable jump height: releasing early cuts the ascent.
+	if jump_released and velocity.y < 0.0:
+		velocity.y *= JUMP_CUT_FACTOR
+
+	if dash_pressed and _dash_timer <= 0.0 and _dash_cooldown <= 0.0 \
+			and (is_on_floor() or not _air_dash_used):
+		_dash_dir = signf(axis) if absf(axis) > 0.05 else (1.0 if cos(aim_angle) >= 0.0 else -1.0)
+		_dash_timer = DASH_TIME
+		_dash_cooldown = DASH_COOLDOWN
+		if not is_on_floor():
+			_air_dash_used = true
+
+	# ------------------------------------------------------------- weapons --
 	_fire_cooldown = maxf(0.0, _fire_cooldown - delta)
 	if reloading:
 		_reload_timer -= delta
@@ -213,7 +332,9 @@ func _shoot(from: Vector2, angle: float) -> void:
 			peer_id, team, from,
 			Vector2.from_angle(pellet_angle) * float(weapon.get("projectile_speed", 1400.0)),
 			int(weapon.get("damage", 10)),
-			Color(weapon.get("color", Color.WHITE)))
+			Color(weapon.get("color", Color.WHITE)),
+			bool(weapon.get("explosive", false)),
+			float(weapon.get("blast_radius", 0.0)))
 		get_parent().add_child(projectile)
 
 
@@ -286,7 +407,12 @@ func _respawn(at: Vector2) -> void:
 	dead = false
 	visible = true
 	body_shape.set_deferred("disabled", false)
+	if is_multiplayer_authority():
+		_apply_mode_weapon()
 	_apply_loadout()
+	_dash_timer = 0.0
+	_dash_cooldown = 0.0
+	_air_dash_used = false
 	_update_bars()
 	local_state_changed.emit()
 

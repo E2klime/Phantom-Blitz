@@ -50,17 +50,17 @@ text = "STORE"
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="CoinsLabel" type="Label" parent="Margin/VBox/TitleRow"]
+[node name="SilverLabel" type="Label" parent="Margin/VBox/TitleRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
-text = "0 ¢"
+theme_override_colors/font_color = Color(0.78, 0.82, 0.88, 1)
+text = "0 Silver"
 
-[node name="GoldLabel" type="Label" parent="Margin/VBox/TitleRow"]
+[node name="TrinketsLabel" type="Label" parent="Margin/VBox/TitleRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.9, 0.55, 1)
-text = "0 G"
+theme_override_colors/font_color = Color(1, 0.84, 0.3, 1)
+text = "0 Trinkets"
 
 [node name="BackButton" type="Button" parent="Margin/VBox/TitleRow"]
 layout_mode = 2
@@ -92,6 +92,15 @@ layout_mode = 2
 custom_minimum_size = Vector2(140, 36)
 toggle_mode = true
 text = "Perks"
+
+[node name="TabSpacer" type="Control" parent="Margin/VBox/Tabs"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ClassFilter" type="OptionButton" parent="Margin/VBox/Tabs"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(180, 36)
 
 [node name="Main" type="HBoxContainer" parent="Margin/VBox"]
 layout_mode = 2
@@ -164,5 +173,6 @@ text = ""
 [connection signal="pressed" from="Margin/VBox/Tabs/WeaponsTab" to="." method="_on_weapons_tab_pressed"]
 [connection signal="pressed" from="Margin/VBox/Tabs/GrenadesTab" to="." method="_on_grenades_tab_pressed"]
 [connection signal="pressed" from="Margin/VBox/Tabs/PerksTab" to="." method="_on_perks_tab_pressed"]
+[connection signal="item_selected" from="Margin/VBox/Tabs/ClassFilter" to="." method="_on_class_filter_item_selected"]
 [connection signal="item_selected" from="Margin/VBox/Main/ItemList" to="." method="_on_item_selected"]
 [connection signal="pressed" from="Margin/VBox/Main/Details/DetailMargin/DetailVBox/ActionButton" to="." method="_on_action_button_pressed"]

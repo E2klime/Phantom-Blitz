@@ -11,8 +11,10 @@ const TIMEOUT := 15.0
 func _ready() -> void:
 	var tree := get_tree()
 	var chat_ok := [false]
+	# No Game.start_match() here: the server replies to registration with
+	# Game._sync_match_config, which starts the match client-side. This also
+	# exercises the late-join config sync path.
 	Net.connection_succeeded.connect(func() -> void:
-		Game.start_match()
 		Net.send_chat("integration test")
 	)
 	Net.connection_failed.connect(func(reason: String) -> void:

@@ -4,43 +4,36 @@ The core is intentionally small and data-driven. The common growth paths:
 
 ## Add a weapon / grenade / perk
 
-Append one entry to `ITEMS` in `autoload/item_db.gd`:
+Weapons are built with the `_w()` helper in `autoload/item_db.gd` `_init()`:
 
 ```gdscript
-"plasma_rifle": {
-    "name": "Plasma Rifle",
-    "category": Category.WEAPON,
-    "description": "Experimental energy weapon.",
-    "price_coins": 12000,
-    "price_gold": 40,
-    "unlock_level": 12,
-    "damage": 22,
-    "fire_rate": 5.0,
-    "automatic": true,
-    "projectile_speed": 2200.0,
-    "pellets": 1,
-    "spread_deg": 1.0,
-    "clip_size": 20,
-    "reload_time": 2.0,
-    "color": Color(0.5, 1.0, 0.9),
-},
+_w("plasma_rifle", WeaponType.EXOTIC, "Plasma Rifle",
+    "Experimental energy weapon.",
+    12,        # unlock_level
+    12000, 40, # price_silver, price_trinkets
+    22, 5.0, true,  # damage, fire_rate, automatic
+    2200.0, 1, 1.0, # projectile_speed, pellets, spread_deg
+    20, 2.0,        # clip_size, reload_time
+    Color(0.5, 1.0, 0.9))
 ```
 
-Done — it appears in the Store, can be bought/equipped, shows in the Profile,
-and fires in-game with those stats. Pellets > 1 makes it a shotgun; the
-`color` tints its bullets. Perks support `max_hp_bonus` and `speed_mult`;
+Done — it appears in the Store (under its weapon class filter), can be
+bought/equipped, shows in the Profile, and fires in-game with those stats.
+Pellets > 1 makes it a shotgun; the `color` tints its bullets. Pass
+`{"explosive": true, "blast_radius": 90.0}` as the trailing `extra` dict for
+launcher-style rounds. Perks support `max_hp_bonus` and `speed_mult`;
 grenades support `damage`, `radius`, `fuse`, `throw_speed`, `carry_count`.
 
 ## Add a map
 
-1. Duplicate `scenes/game/arena.tscn` and rebuild the `World` geometry
-   (any `StaticBody2D` colliders work — TileMaps too).
-2. Keep the **map contract**: `Players` node, `SpawnPoints` markers named
-   `Blue*` / `Red*`, a `KillZone` Area2D, the root script with
-   `get_spawn_position()` (reuse `arena.gd`), and the HUD instance.
-3. Point `Game.ARENA_SCENE` to it — or turn that constant into a variable to
-   support map voting / rotation (sync the choice from the server before
-   `start_match`).
+1. Create a script-less scene in `maps/` (copy `maps/foundry.tscn` as a base).
+2. Keep the **map contract**: a `World` node with `StaticBody2D` colliders
+   (TileMaps work too), `SpawnPoints` markers named `Blue*` / `Red*`, and an
+   optional `KillZone` Area2D (layer 0, mask 2).
+3. Register it in `MAPS` in `autoload/map_db.gd` — it then shows up in the
+   main-menu map picker and the server syncs it to late joiners
+   automatically (`Game._sync_match_config`).
+4. Add the scene path to `MAP_SCENES` in `tests/validate_scenes.gd`.
 
 ## Replace the placeholder art
 
@@ -57,9 +50,11 @@ Visuals are isolated from logic:
 
 ## Add a game mode
 
-Match rules live in **`autoload/game.gd`** only (`report_kill`,
-`SCORE_LIMIT`, `_sync_match_end`). For example, for Deathmatch ignore teams in
-scoring; for Capture-the-Flag add flag nodes to the map that call into `Game`.
+Add an entry to the `MODES` dictionary in **`autoload/game.gd`** with
+`name`, `description`, `team_based`, `score_limit`, and optionally
+`forced_weapon` (everyone uses one gun, like Instagib) or `gun_ladder`
+(Gun Game-style progression). Scoring rules live in `report_kill`; modes
+with bespoke rules (flags, zones) add map nodes that call into `Game`.
 The HUD listens to `Game.score_changed` / `Game.match_ended` and doesn't care
 how scores are produced.
 

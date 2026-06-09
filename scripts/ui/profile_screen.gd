@@ -26,8 +26,8 @@ func _refresh() -> void:
 	xp_label.text = "EXP  %d / %d" % [Profile.xp, Profile.xp_needed(Profile.level)]
 
 	var kd := float(Profile.kills) / maxf(1.0, float(Profile.deaths))
-	stats_label.text = "Kills: %d\nDeaths: %d\nK/D: %.2f\nMatches: %d\nCoins: %d ¢\nGold: %d G" % [
-		Profile.kills, Profile.deaths, kd, Profile.matches_played, Profile.coins, Profile.gold]
+	stats_label.text = "Kills: %d\nDeaths: %d\nK/D: %.2f\nMatches: %d\nSilver: %d\nTrinkets: %d" % [
+		Profile.kills, Profile.deaths, kd, Profile.matches_played, Profile.silver, Profile.trinkets]
 
 	loadout_label.text = "Weapon:  %s\nGrenade: %s\nPerk:    %s" % [
 		_item_name(str(Profile.loadout.get("weapon", ""))),

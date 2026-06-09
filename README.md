@@ -11,13 +11,17 @@ documented foundation you drop your art and content into.
 
 | Feature | Where |
 |---|---|
-| Main menu, Store, Server list, Profile, Settings | `scenes/ui/` |
-| In-game HUD: EXP/level, coins + gold, team scores, ping, ammo/HP/grenades, quick chat (keys 1–7), kill feed | `scenes/ui/hud.tscn` |
-| Touch controls (dual virtual sticks + buttons) for mobile/web | auto-shown on touch devices |
-| Platformer combat: run, double jump, aim with mouse/stick, 5 weapons, grenades, perks | `scripts/game/` |
+| Main menu (mode + map picker), Store, Server list, Profile, Settings | `scenes/ui/` |
+| In-game HUD: EXP/level, Silver + Trinkets, team/FFA scores, ping, ammo/HP/grenades, kill rewards + combo popups, quick chat (keys 1–7), kill feed | `scenes/ui/hud.tscn` |
+| Touch controls (dual virtual sticks + JUMP/NADE/DASH buttons) for mobile/web | auto-shown on touch devices |
+| Platformer combat: run, double jump, wall jump, dash, fast fall, coyote time + jump buffering, aim with mouse/stick, grenades, perks | `scripts/game/` |
+| **62 weapons in 8 classes** (pistol, SMG, shotgun, rifle, sniper, LMG, launcher, exotic — no melee) | `autoload/item_db.gd` |
+| **4 game modes**: Team Deathmatch, Free-for-All, Gun Game, Instagib | `autoload/game.gd` |
+| **5 maps** in a dedicated folder, selectable from the menu and synced to joining clients | `maps/` + `autoload/map_db.gd` |
+| Kill rewards: 10 Silver + 5 XP per kill, combo multiplier up to ×7 within 6 s, level-difference bonus/malus | `autoload/game.gd` |
 | Online multiplayer: host / join / direct connect, drop-in drop-out, team auto-balance, chat, ping, dedicated server mode | `autoload/net.gd` |
-| Progression: XP/levels, two currencies, purchases, loadout, stats — saved locally | `autoload/profile.gd` |
-| Data-driven item database (add a dictionary entry → it appears in the store and in-game) | `autoload/item_db.gd` |
+| Progression: XP/levels, two currencies (Silver coins + premium gold Trinkets), purchases, loadout, stats — saved locally | `autoload/profile.gd` |
+| Data-driven item database (one builder call → it appears in the store and in-game) | `autoload/item_db.gd` |
 
 ## Quick start
 
@@ -40,7 +44,9 @@ godot --headless -- --server --websocket --port 7777  # for web clients (WebSock
 | Action | Keyboard / mouse | Touch |
 |---|---|---|
 | Move | A/D or ←/→ | left stick |
-| Jump / double jump | Space / W / ↑ | JUMP button |
+| Jump / double jump / wall jump | Space / W / ↑ | JUMP button |
+| Dash | Shift | DASH button |
+| Fast fall | S / ↓ (in air) | left stick down |
 | Aim + shoot | mouse + LMB | right stick (push to edge to fire) |
 | Grenade | G or RMB | NADE button |
 | Reload | R | automatic |
@@ -60,7 +66,8 @@ godot --headless -- --server --websocket --port 7777  # for web clients (WebSock
 ```
 project.godot        engine config: autoloads, input map, renderer
 export_presets.cfg   export targets for all 6 platforms
-autoload/            global singletons (game state, networking, profile, items, servers)
+autoload/            global singletons (game state, networking, profile, items, maps, servers)
+maps/                all playable maps (script-less scenes, registered in MapDB)
 scenes/ui/           menu, store, server browser, profile, settings, HUD
 scenes/game/         arena, player, projectile, grenade
 scripts/             all GDScript code (ui/ and game/)
