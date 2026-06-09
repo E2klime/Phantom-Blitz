@@ -7,10 +7,11 @@
                 │                 Autoloads                  │
                 │  (always alive, survive scene changes)     │
                 │                                            │
-                │  Game     scene flow + match state (RPCs)  │
+                │  Game     scene flow + modes + match state │
                 │  Net      connections + player registry    │
                 │  Profile  local progression / wallet / save│
                 │  ItemDB   static item & weapon data        │
+                │  MapDB    static map registry (maps/)      │
                 │  Servers  saved server list                │
                 └────────────────────────────────────────────┘
                        ▲                    ▲
@@ -28,10 +29,11 @@ touching game logic, or swap the arena without touching the UI.
 
 | Singleton | File | Responsibility |
 |---|---|---|
-| `Game` | `game.gd` | Scene switching, match lifecycle, team scores, kill events + rewards. Server-authoritative; state reaches clients via RPCs on this node. |
+| `Game` | `game.gd` | Scene switching, game modes (TDM / FFA / Gun Game / Instagib), match lifecycle, scores, kill events + Silver/XP rewards (combo + level-difference scaling). Server-authoritative; state reaches clients via RPCs on this node. |
 | `Net` | `net.gd` | Hosting/joining (ENet or WebSocket), the `players` registry (peer_id → name/team/kills/deaths), team auto-balance, chat relay, ping measurement, dedicated-server bootstrap. |
-| `Profile` | `profile.gd` | The local player: name, XP/level, coins/gold, owned items, equipped loadout, settings. JSON-persisted to `user://`. |
-| `ItemDB` | `item_db.gd` | Pure data: every weapon/grenade/perk and its stats/prices. No state. |
+| `Profile` | `profile.gd` | The local player: name, XP/level, Silver/Trinkets, owned items, equipped loadout, settings. JSON-persisted to `user://`. |
+| `ItemDB` | `item_db.gd` | Pure data: 62 weapons in 8 classes plus grenades/perks, with stats and prices. No state. |
+| `MapDB` | `map_db.gd` | Pure data: the registry of playable maps in `maps/` (name, scene path, description). No state. |
 | `Servers` | `servers.gd` | The server browser's backend: a locally saved list of servers, pluggable for a master server. |
 
 ## Scene flow
@@ -72,10 +74,12 @@ consume:
 - `take_damage(amount, attacker_id)` (server-side)
 - `local_state_changed` signal (HUD refresh)
 
-`arena.tscn` exposes the map contract: a `Players` container,
-`SpawnPoints` with markers named `Blue*` / `Red*`, a `KillZone`, and the
-`arena` group with `get_spawn_position(team)`. Any scene honoring this
-contract is a valid map.
+`arena.tscn` is map-agnostic: it instantiates the selected map scene from
+`maps/` (chosen via `Game.map_id`, see `MapDB`). A map is a **script-less
+scene** honoring the map contract: `World` geometry, `SpawnPoints` markers
+named `Blue*` / `Red*`, and an optional `KillZone` Area2D. The arena itself
+provides the `Players` container, the `arena` group and
+`get_spawn_position(team)`.
 
 ## Data-driven content
 

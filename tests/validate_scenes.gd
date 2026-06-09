@@ -17,6 +17,15 @@ const SCENES: Array[String] = [
 	"res://scenes/game/arena.tscn",
 ]
 
+# Maps are script-less by contract (see arena.gd) but must expose SpawnPoints.
+const MAP_SCENES: Array[String] = [
+	"res://maps/foundry.tscn",
+	"res://maps/skyline.tscn",
+	"res://maps/bunker.tscn",
+	"res://maps/canyon.tscn",
+	"res://maps/crossfire.tscn",
+]
+
 
 func _ready() -> void:
 	var failures := 0
@@ -36,9 +45,25 @@ func _ready() -> void:
 			failures += 1
 		instance.free()
 		print("OK  %s" % path)
+	for path in MAP_SCENES:
+		var packed: PackedScene = load(path)
+		if packed == null:
+			printerr("FAIL load: %s" % path)
+			failures += 1
+			continue
+		var instance := packed.instantiate()
+		if instance == null:
+			printerr("FAIL instantiate: %s" % path)
+			failures += 1
+			continue
+		if instance.get_node_or_null("SpawnPoints") == null:
+			printerr("FAIL missing SpawnPoints: %s" % path)
+			failures += 1
+		instance.free()
+		print("OK  %s" % path)
 	if failures > 0:
 		printerr("%d scene(s) failed validation." % failures)
 		get_tree().quit(1)
 	else:
-		print("All %d scenes validated." % SCENES.size())
+		print("All %d scenes validated." % (SCENES.size() + MAP_SCENES.size()))
 		get_tree().quit(0)

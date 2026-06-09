@@ -57,26 +57,26 @@ show_percentage = false
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="CoinsIcon" type="Label" parent="Root/TopLeft/WalletRow"]
+[node name="SilverIcon" type="Label" parent="Root/TopLeft/WalletRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
-text = "¢"
+theme_override_colors/font_color = Color(0.78, 0.82, 0.88, 1)
+text = "◉"
 
-[node name="CoinsLabel" type="Label" parent="Root/TopLeft/WalletRow"]
+[node name="SilverLabel" type="Label" parent="Root/TopLeft/WalletRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
+theme_override_colors/font_color = Color(0.78, 0.82, 0.88, 1)
 text = "0"
 
-[node name="GoldIcon" type="Label" parent="Root/TopLeft/WalletRow"]
+[node name="TrinketIcon" type="Label" parent="Root/TopLeft/WalletRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.9, 0.55, 1)
-text = "G"
+theme_override_colors/font_color = Color(1, 0.84, 0.3, 1)
+text = "◆"
 
-[node name="GoldLabel" type="Label" parent="Root/TopLeft/WalletRow"]
+[node name="TrinketsLabel" type="Label" parent="Root/TopLeft/WalletRow"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.9, 0.55, 1)
+theme_override_colors/font_color = Color(1, 0.84, 0.3, 1)
 text = "0"
 
 [node name="ChatLog" type="Label" parent="Root"]
@@ -105,6 +105,7 @@ mouse_filter = 2
 theme_override_constants/separation = 6
 
 [node name="BlueRow" type="HBoxContainer" parent="Root/TopRight"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 10
 
@@ -123,6 +124,7 @@ text = "0"
 horizontal_alignment = 2
 
 [node name="RedRow" type="HBoxContainer" parent="Root/TopRight"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 10
 
@@ -138,6 +140,14 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 18
 text = "0"
+horizontal_alignment = 2
+
+[node name="FFAScore" type="Label" parent="Root/TopRight"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = ""
 horizontal_alignment = 2
 
 [node name="PingLabel" type="Label" parent="Root/TopRight"]
@@ -228,6 +238,21 @@ layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
 text = "100 / 100"
 
+[node name="RewardLabel" type="Label" parent="Root"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchor_top = 0.58
+anchor_right = 1.0
+anchor_bottom = 0.66
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.84, 0.3, 1)
+theme_override_font_sizes/font_size = 22
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="Banner" type="Label" parent="Root"]
 unique_name_in_owner = true
 layout_mode = 1
@@ -307,6 +332,21 @@ offset_bottom = -260.0
 grow_horizontal = 0
 grow_vertical = 0
 text = "NADE"
+
+[node name="DashButton" type="Button" parent="Root/TouchControls"]
+unique_name_in_owner = true
+layout_mode = 1
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -360.0
+offset_top = -330.0
+offset_right = -256.0
+offset_bottom = -260.0
+grow_horizontal = 0
+grow_vertical = 0
+text = "DASH"
 
 [node name="PauseMenu" type="Control" parent="Root"]
 unique_name_in_owner = true

@@ -12,8 +12,8 @@ const STARTING_ITEMS: Array = ["pistol"]
 var player_name: String = "Recruit"
 var xp: int = 0
 var level: int = 1
-var coins: int = 500
-var gold: int = 5
+var silver: int = 500   # Silver coins — earned from kills, common currency.
+var trinkets: int = 5   # Gold Trinkets — rare premium currency.
 var kills: int = 0
 var deaths: int = 0
 var matches_played: int = 0
@@ -52,14 +52,14 @@ func add_xp(amount: int) -> void:
 	save_profile()
 
 
-func add_coins(amount: int) -> void:
-	coins += amount
+func add_silver(amount: int) -> void:
+	silver = maxi(0, silver + amount)
 	profile_changed.emit()
 	save_profile()
 
 
-func add_gold(amount: int) -> void:
-	gold += amount
+func add_trinkets(amount: int) -> void:
+	trinkets = maxi(0, trinkets + amount)
 	profile_changed.emit()
 	save_profile()
 
@@ -87,7 +87,7 @@ func can_afford(item_id: String) -> bool:
 	var item: Dictionary = ItemDB.get_item(item_id)
 	if item.is_empty():
 		return false
-	return coins >= int(item["price_coins"]) and gold >= int(item["price_gold"])
+	return silver >= int(item["price_silver"]) and trinkets >= int(item["price_trinkets"])
 
 
 func is_unlocked(item_id: String) -> bool:
@@ -109,8 +109,8 @@ func purchase(item_id: String) -> String:
 		return "Requires level %d." % int(item["unlock_level"])
 	if not can_afford(item_id):
 		return "Not enough funds."
-	coins -= int(item["price_coins"])
-	gold -= int(item["price_gold"])
+	silver -= int(item["price_silver"])
+	trinkets -= int(item["price_trinkets"])
 	owned_items.append(item_id)
 	profile_changed.emit()
 	save_profile()
@@ -147,8 +147,8 @@ func save_profile() -> void:
 		"player_name": player_name,
 		"xp": xp,
 		"level": level,
-		"coins": coins,
-		"gold": gold,
+		"silver": silver,
+		"trinkets": trinkets,
 		"kills": kills,
 		"deaths": deaths,
 		"matches_played": matches_played,
@@ -178,8 +178,9 @@ func load_profile() -> void:
 	player_name = str(data.get("player_name", player_name))
 	xp = int(data.get("xp", xp))
 	level = int(data.get("level", level))
-	coins = int(data.get("coins", coins))
-	gold = int(data.get("gold", gold))
+	# "coins"/"gold" are legacy keys from pre-currency-rework saves.
+	silver = int(data.get("silver", data.get("coins", silver)))
+	trinkets = int(data.get("trinkets", data.get("gold", trinkets)))
 	kills = int(data.get("kills", kills))
 	deaths = int(data.get("deaths", deaths))
 	matches_played = int(data.get("matches_played", matches_played))
